@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Simulacion del proyecto logistico</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <p class="eyebrow">TP3 · Simulacion · Grupo 4</p>
+      <h1>Proyecto logistico</h1>
+      <p class="subtitle">Cargá los parámetros del generador y observá cómo se comporta la red de actividades en paralelo.</p>
+    </header>
+
+    <section class="layout">
+      <form id="simulation-form" class="panel parameters">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Configuracion</p>
+            <h2>Parametros del modelo</h2>
+          </div>
+          <span class="status-dot" aria-hidden="true"></span>
+        </div>
+
+        <fieldset>
+          <legend>Generador congruencial mixto</legend>
+          <div class="field-grid">
+            <label>Legajo <input id="legajo" type="number" min="1" value="91550" required></label>
+            <label>Simulaciones <input id="cantidad" type="number" min="1" value="100000" required></label>
+            <label>Semilla <input id="semilla" type="number" min="0" value="3922" required></label>
+            <label>Multiplicador <input id="multiplicador" type="number" min="0" value="1221" required></label>
+            <label>Constante aditiva <input id="aditivo" type="number" min="0" value="1714" required></label>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Distribuciones</legend>
+          <div class="field-grid">
+            <label>Media de E <span class="unit-input"><input id="media-e" type="number" min="0.01" step="0.01" value="5"><b>min</b></span></label>
+            <label>Mínimo de D <span class="unit-input"><input id="d-min" type="number" min="0" step="0.01" value="5"><b>min</b></span></label>
+            <label>Máximo de D <span class="unit-input"><input id="d-max" type="number" min="0" step="0.01" value="25"><b>min</b></span></label>
+          </div>
+        </fieldset>
+
+        <button class="run-button" type="submit"><span>▶</span> Ejecutar simulacion</button>
+        <p id="error" class="error" role="alert" hidden></p>
+      </form>
+
+      <section class="panel results" aria-live="polite">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Salida</p>
+            <h2>Resultados</h2>
+          </div>
+          <span id="run-label" class="run-label">Sin ejecutar</span>
+        </div>
+
+        <div id="empty-state" class="empty-state">
+          <div class="empty-mark">↗</div>
+          <h3>Listo para simular</h3>
+          <p>Completá los parámetros y ejecutá el modelo para obtener los estimadores del proyecto.</p>
+        </div>
+
+        <div id="result-content" hidden>
+          <div class="metric-grid">
+            <article class="metric featured"><span>Promedio</span><strong id="promedio">—</strong><small>minutos</small></article>
+            <article class="metric"><span>Mínimo observado</span><strong id="minimo">—</strong><small>minutos</small></article>
+            <article class="metric"><span>Percentil 95</span><strong id="percentil">—</strong><small>minutos</small></article>
+            <article class="metric"><span>Máximo observado</span><strong id="maximo">—</strong><small>minutos</small></article>
+            <article class="metric"><span>P(T ≤ 60)</span><strong id="menor-60">—</strong><small>probabilidad</small></article>
+            <article class="metric"><span>P(T ≥ 90)</span><strong id="mayor-90">—</strong><small>probabilidad</small></article>
+          </div>
+
+          <div class="result-section">
+            <div class="section-heading"><h3>Duración promedio por actividad</h3><span>min</span></div>
+            <div id="activity-results" class="activity-list"></div>
+          </div>
+
+          <div class="result-section split-section">
+            <div>
+              <div class="section-heading"><h3>Actividades críticas</h3><span>proporción</span></div>
+              <div id="critical-results" class="bar-list"></div>
+            </div>
+            <div>
+              <div class="section-heading"><h3>Frecuencia</h3><span>10 intervalos</span></div>
+              <div id="frequency-results" class="frequency-list"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </section>
+
+  </main>
+  <script>
+    class GeneradorCongruencialMixto {
+      constructor(semilla, multiplicador, aditivo, modulo) {
+        if (modulo <= 0 || semilla < 0 || semilla >= modulo) throw new Error('La semilla debe estar entre 0 y modulo - 1.');
+        this.xi = semilla;
+        this.multiplicador = multiplicador;
+        this.aditivo = aditivo;
+        this.modulo = modulo;
+      }
+      siguiente() {
+        this.xi = (this.multiplicador * this.xi + this.aditivo) % this.modulo;
+        return this.xi / this.modulo;
+      }
+    }
+
+// Funciones auxiliares
+    const $ = (id) => document.getElementById(id);
+    const redondeo = (value) => Number(value).toFixed(2);
+    const porcentaje = (value) => `${(value * 100).toFixed(2)}%`;
+
+// Función para generar variables aleatorias discretas
+    function discreta(aleatorio, valores, probabilidades) {
+      let acumulada = 0;
+      for (let i = 0; i < valores.length; i += 1) {
+        acumulada += probabilidades[i];
+        if (aleatorio < acumulada) return valores[i];
+      }
+      return valores[valores.length - 1];
+    }
+
+// Genera un generador diferente para cada variable aleatoria
+    function crearGeneradores(p) {
+      const crear = (desplazamiento) => new GeneradorCongruencialMixto(
+        (p.semilla + desplazamiento) % p.legajo,
+        p.multiplicador,
+        p.aditivo,
+        p.legajo
+      );
+      return {
+        B: crear(1),
+        D: crear(2),
+        E: crear(3),
+        F: crear(4)
+      };
+    }
+
+    function simular(generadores, p) {
+      const tiempos = {
+        A: 15,
+        B: discreta(generadores.B.siguiente(), [20, 30, 40], [0.25, 0.40, 0.35]),
+        C: 5,
+        D: p.dMin + (p.dMax - p.dMin) * generadores.D.siguiente(),
+        E: -p.mediaE * Math.log(1 - generadores.E.siguiente()),
+        F: discreta(generadores.F.siguiente(), [15, 25], [0.50, 0.50])
+      };
+      const finA = tiempos.A;
+      const finB = finA + tiempos.B;
+      const finC = tiempos.C;
+      const finD = finC + tiempos.D;
+      const finE = finD + tiempos.E;
+      const inicioF = Math.max(finB, finE); // F comienza cuando B y E han terminado
+      const total = inicioF + tiempos.F;
+      return { tiempos, finB, finE, total };
+    }
+
+    function ejecutarSimulaciones(p, procesarResultado) {
+      const generadores = crearGeneradores(p);
+      for (let i = 0; i < p.cantidad; i += 1) {
+        const resultado = simular(generadores, p);
+        procesarResultado(resultado);
+      }
+    }
+
+    function calcular(p) {
+      let suma = 0;
+      let minimo = Infinity;
+      let maximo = -Infinity;
+      let menores60 = 0;
+      let mayores90 = 0;
+      const criticas = {
+        A: 0,
+        B: 0,
+        C: 0,
+        D: 0,
+        E: 0,
+        F: 0
+      };
+      const duraciones = {
+        A: 0,
+        B: 0,
+        C: 0,
+        D: 0,
+        E: 0,
+        F: 0
+      };
+      const histograma = {};
+
+      ejecutarSimulaciones(p, (resultado) => {
+        suma += resultado.total;
+        minimo = Math.min(minimo, resultado.total);
+        maximo = Math.max(maximo, resultado.total);
+        menores60 += resultado.total <= 60;
+        mayores90 += resultado.total >= 90;
+        Object.entries(resultado.tiempos).forEach(([codigo, tiempo]) => { duraciones[codigo] += tiempo; });
+        const indicePercentil = Math.floor(resultado.total / 0.01);
+        histograma[indicePercentil] = (histograma[indicePercentil] || 0) + 1;
+        criticas.F += 1;
+        const productoEsCritico = resultado.finB >= resultado.finE;
+        (productoEsCritico ? ['A', 'B'] : ['C', 'D', 'E']).forEach((codigo) => { criticas[codigo] += 1; });
+      });
+
+      const objetivo = Math.max(1, Math.ceil(0.95 * p.cantidad));
+      let acumulada = 0;
+      let percentil = minimo;
+      Object.keys(histograma).map(Number).sort((a, b) => a - b).some((indice) => {
+        acumulada += histograma[indice];
+        if (acumulada >= objetivo) { percentil = (indice + 0.5) * 0.01; return true; }
+        return false;
+      });
+
+      const intervalos = Array(10).fill(0);
+      ejecutarSimulaciones(p, (resultado) => {
+        const indice = Math.min(9, Math.floor((resultado.total - minimo) / 10));
+        intervalos[Math.max(0, indice)] += 1;
+      });
+      return { suma, minimo, maximo, menores60, mayores90, criticas, duraciones, percentil, intervalos };
+    }
+
+    function mostrar(p, r) {
+      $('empty-state').hidden = true;
+      $('result-content').hidden = false;
+      $('run-label').textContent = `${p.cantidad.toLocaleString('es-AR')} corridas`;
+      $('promedio').textContent = redondeo(r.suma / p.cantidad);
+      $('minimo').textContent = redondeo(r.minimo);
+      $('percentil').textContent = redondeo(r.percentil);
+      $('maximo').textContent = redondeo(r.maximo);
+      $('menor-60').textContent = porcentaje(r.menores60 / p.cantidad);
+      $('mayor-90').textContent = porcentaje(r.mayores90 / p.cantidad);
+      $('activity-results').innerHTML = Object.entries(r.duraciones).map(([codigo, total]) => `<div class="activity-row"><b>${codigo}</b><span>${redondeo(total / p.cantidad)} min</span></div>`).join('');
+      $('critical-results').innerHTML = Object.entries(r.criticas).map(([codigo, total]) => `<div class="bar-row"><div><b>${codigo}</b><span>${porcentaje(total / p.cantidad)}</span></div><i><em style="width: ${total / p.cantidad * 100}%"></em></i></div>`).join('');
+      $('frequency-results').innerHTML = r.intervalos.map((total, indice) => `<div class="frequency-row"><span>${indice < 9 ? `${redondeo(r.minimo + indice * 10)}–${redondeo(r.minimo + (indice + 1) * 10)}` : `≥ ${redondeo(r.minimo + 90)}`}</span><b>${total.toLocaleString('es-AR')}</b></div>`).join('');
+    }
+
+    $('simulation-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      $('error').hidden = true;
+      try {
+        const p = {
+          legajo: Number($('legajo').value), cantidad: Number($('cantidad').value), semilla: Number($('semilla').value),
+          multiplicador: Number($('multiplicador').value), aditivo: Number($('aditivo').value), mediaE: Number($('media-e').value),
+          dMin: Number($('d-min').value), dMax: Number($('d-max').value)
+        };
+        if (p.dMin > p.dMax) throw new Error('El minimo de D no puede superar al maximo.');
+        if (p.cantidad < 1 || p.legajo <= 0) throw new Error('La cantidad y el legajo deben ser positivos.');
+        if (p.semilla >= p.legajo) throw new Error('La semilla debe ser menor que el legajo/modulo.');
+        const boton = event.currentTarget.querySelector('button');
+        boton.disabled = true;
+        boton.innerHTML = '<span>⟳</span> Simulando...';
+        requestAnimationFrame(() => {
+          try { mostrar(p, calcular(p)); }
+          finally { boton.disabled = false; boton.innerHTML = '<span>▶</span> Ejecutar simulacion'; }
+        });
+      } catch (error) {
+        $('error').textContent = error.message;
+        $('error').hidden = false;
+      }
+    });
+  </script>
+</body>
+</html>
