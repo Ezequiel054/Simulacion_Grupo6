@@ -36,6 +36,13 @@
         </fieldset>
 
         <fieldset>
+          <legend>Visualización de la tabla</legend>
+          <div class="field-grid">
+            <label>Filas a mostrar <input id="filas-mostrar" type="number" min="1" value="100" required></label>
+          </div>
+        </fieldset>
+
+        <fieldset>
           <legend>Distribuciones</legend>
           <div class="field-grid">
             <label>Media de E <span class="unit-input"><input id="media-e" type="number" min="0.01" step="0.01" value="5"><b>min</b></span></label>
@@ -57,13 +64,42 @@
           <span id="run-label" class="run-label">Sin ejecutar</span>
         </div>
 
+        <!-- Cartel de inicio -->
         <div id="empty-state" class="empty-state">
           <div class="empty-mark">↗</div>
           <h3>Listo para simular</h3>
           <p>Completá los parámetros y ejecutá el modelo para obtener los estimadores del proyecto.</p>
         </div>
 
-        <div id="result-content" hidden>
+        <!-- Resultados que aparecen arriba -->
+        <div id="result-content" style="display: none;">
+          <div class="result-section" style="margin-top: 0; padding-top: 0; border-top: none;">
+            <div class="section-heading">
+              <h3>Detalle de iteraciones iniciales</h3>
+              <span id="total-corridas-label">Mostrando filas</span>
+            </div>
+            <!-- Contenedor con scroll vertical fluido -->
+            <div class="table-container" style="max-height: 350px; overflow-y: auto;">
+              <table class="simulation-table">
+                <thead>
+                  <tr>
+                    <th>N°</th>
+                    <th>A</th>
+                    <th>B</th>
+                    <th>C</th>
+                    <th>D</th>
+                    <th>E</th>
+                    <th>F</th>
+                    <th>Total (min)</th>
+                  </tr>
+                </thead>
+                <tbody id="detalle-iteraciones">
+                  <!-- Se llena dinámicamente -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
           <div class="metric-grid">
             <article class="metric featured"><span>Promedio</span><strong id="promedio">—</strong><small>minutos</small></article>
             <article class="metric"><span>Mínimo observado</span><strong id="minimo">—</strong><small>minutos</small></article>
@@ -108,12 +144,10 @@
       }
     }
 
-// Funciones auxiliares
     const $ = (id) => document.getElementById(id);
     const redondeo = (value) => Number(value).toFixed(2);
     const porcentaje = (value) => `${(value * 100).toFixed(2)}%`;
 
-// Función para generar variables aleatorias discretas
     function discreta(aleatorio, valores, probabilidades) {
       let acumulada = 0;
       for (let i = 0; i < valores.length; i += 1) {
@@ -123,7 +157,6 @@
       return valores[valores.length - 1];
     }
 
-// Genera un generador diferente para cada variable aleatoria
     function crearGeneradores(p) {
       const crear = (desplazamiento) => new GeneradorCongruencialMixto(
         (p.semilla + desplazamiento) % p.legajo,
@@ -153,17 +186,9 @@
       const finC = tiempos.C;
       const finD = finC + tiempos.D;
       const finE = finD + tiempos.E;
-      const inicioF = Math.max(finB, finE); // F comienza cuando B y E han terminado
+      const inicioF = Math.max(finB, finE);
       const total = inicioF + tiempos.F;
       return { tiempos, finB, finE, total };
-    }
-
-    function ejecutarSimulaciones(p, procesarResultado) {
-      const generadores = crearGeneradores(p);
-      for (let i = 0; i < p.cantidad; i += 1) {
-        const resultado = simular(generadores, p);
-        procesarResultado(resultado);
-      }
     }
 
     function calcular(p) {
@@ -172,25 +197,20 @@
       let maximo = -Infinity;
       let menores60 = 0;
       let mayores90 = 0;
-      const criticas = {
-        A: 0,
-        B: 0,
-        C: 0,
-        D: 0,
-        E: 0,
-        F: 0
-      };
-      const duraciones = {
-        A: 0,
-        B: 0,
-        C: 0,
-        D: 0,
-        E: 0,
-        F: 0
-      };
+      const criticas = { A: 0, B: 0, C: 0, D: 0, E: 0, F: 0 };
+      const duraciones = { A: 0, B: 0, C: 0, D: 0, E: 0, F: 0 };
       const histograma = {};
+      const iteracionesParciales = [];
 
-      ejecutarSimulaciones(p, (resultado) => {
+      const generadores = crearGeneradores(p);
+      for (let i = 1; i <= p.cantidad; i += 1) {
+        const resultado = simular(generadores, p);
+        
+        // Guardamos solo hasta el límite de filas que el usuario pidió mostrar para no sobrecargar
+        if (i <= p.filasMostrar) {
+          iteracionesParciales.push({ numero: i, ...resultado });
+        }
+
         suma += resultado.total;
         minimo = Math.min(minimo, resultado.total);
         maximo = Math.max(maximo, resultado.total);
@@ -202,7 +222,7 @@
         criticas.F += 1;
         const productoEsCritico = resultado.finB >= resultado.finE;
         (productoEsCritico ? ['A', 'B'] : ['C', 'D', 'E']).forEach((codigo) => { criticas[codigo] += 1; });
-      });
+      }
 
       const objetivo = Math.max(1, Math.ceil(0.95 * p.cantidad));
       let acumulada = 0;
@@ -214,40 +234,60 @@
       });
 
       const intervalos = Array(10).fill(0);
-      ejecutarSimulaciones(p, (resultado) => {
+      const generadoresFreq = crearGeneradores(p);
+      for (let i = 0; i < p.cantidad; i += 1) {
+        const resultado = simular(generadoresFreq, p);
         const indice = Math.min(9, Math.floor((resultado.total - minimo) / 10));
         intervalos[Math.max(0, indice)] += 1;
-      });
-      return { suma, minimo, maximo, menores60, mayores90, criticas, duraciones, percentil, intervalos };
+      }
+
+      return { suma, minimo, maximo, menores60, mayores90, criticas, duraciones, percentil, intervalos, iteracionesParciales };
     }
 
     function mostrar(p, r) {
-      $('empty-state').hidden = true;
-      $('result-content').hidden = false;
-      $('run-label').textContent = `${p.cantidad.toLocaleString('es-AR')} corridas`;
+      $('empty-state').style.display = 'none';
+      $('result-content').style.display = 'block';$('run-label').textContent = `${p.cantidad.toLocaleString('es-AR')} corridas`;
+      $('total-corridas-label').textContent = `Mostrando ${r.iteracionesParciales.length.toLocaleString('es-AR')} de ${p.cantidad.toLocaleString('es-AR')}`;
+
+      $('detalle-iteraciones').innerHTML = r.iteracionesParciales.map((it) => `
+        <tr>
+          <td><b>#${it.numero}</b></td>
+          <td>${redondeo(it.tiempos.A)}</td>
+          <td>${redondeo(it.tiempos.B)}</td>
+          <td>${redondeo(it.tiempos.C)}</td>
+          <td>${redondeo(it.tiempos.D)}</td>
+          <td>${redondeo(it.tiempos.E)}</td>
+          <td>${redondeo(it.tiempos.F)}</td>
+          <td><b>${redondeo(it.total)}</b></td>
+        </tr>
+      `).join('');
+
       $('promedio').textContent = redondeo(r.suma / p.cantidad);
-      $('minimo').textContent = redondeo(r.minimo);
-      $('percentil').textContent = redondeo(r.percentil);
-      $('maximo').textContent = redondeo(r.maximo);
-      $('menor-60').textContent = porcentaje(r.menores60 / p.cantidad);
-      $('mayor-90').textContent = porcentaje(r.mayores90 / p.cantidad);
-      $('activity-results').innerHTML = Object.entries(r.duraciones).map(([codigo, total]) => `<div class="activity-row"><b>${codigo}</b><span>${redondeo(total / p.cantidad)} min</span></div>`).join('');
+      $('minimo').textContent = redondeo(r.minimo);$('percentil').textContent = redondeo(r.percentil);
+      $('maximo').textContent = redondeo(r.maximo);$('menor-60').textContent = porcentaje(r.menores60 / p.cantidad);
+      $('mayor-90').textContent = porcentaje(r.mayores90 / p.cantidad);$('activity-results').innerHTML = Object.entries(r.duraciones).map(([codigo, total]) => `<div class="activity-row"><b>${codigo}</b><span>${redondeo(total / p.cantidad)} min</span></div>`).join('');
       $('critical-results').innerHTML = Object.entries(r.criticas).map(([codigo, total]) => `<div class="bar-row"><div><b>${codigo}</b><span>${porcentaje(total / p.cantidad)}</span></div><i><em style="width: ${total / p.cantidad * 100}%"></em></i></div>`).join('');
       $('frequency-results').innerHTML = r.intervalos.map((total, indice) => `<div class="frequency-row"><span>${indice < 9 ? `${redondeo(r.minimo + indice * 10)}–${redondeo(r.minimo + (indice + 1) * 10)}` : `≥ ${redondeo(r.minimo + 90)}`}</span><b>${total.toLocaleString('es-AR')}</b></div>`).join('');
     }
 
-    $('simulation-form').addEventListener('submit', (event) => {
-      event.preventDefault();
-      $('error').hidden = true;
+    $('simulation-form').addEventListener('submit', (event) => {       event.preventDefault();$('error').hidden = true;
       try {
         const p = {
-          legajo: Number($('legajo').value), cantidad: Number($('cantidad').value), semilla: Number($('semilla').value),
-          multiplicador: Number($('multiplicador').value), aditivo: Number($('aditivo').value), mediaE: Number($('media-e').value),
-          dMin: Number($('d-min').value), dMax: Number($('d-max').value)
+          legajo: Number($('legajo').value), 
+          cantidad: Number($('cantidad').value), 
+          semilla: Number($('semilla').value),
+          multiplicador: Number($('multiplicador').value), 
+          aditivo: Number($('aditivo').value), 
+          mediaE: Number($('media-e').value),
+          dMin: Number($('d-min').value), 
+          dMax: Number($('d-max').value),
+          filasMostrar: Number($('filas-mostrar').value)
         };
         if (p.dMin > p.dMax) throw new Error('El minimo de D no puede superar al maximo.');
         if (p.cantidad < 1 || p.legajo <= 0) throw new Error('La cantidad y el legajo deben ser positivos.');
         if (p.semilla >= p.legajo) throw new Error('La semilla debe ser menor que el legajo/modulo.');
+        if (p.filasMostrar < 1) throw new Error('Las filas a mostrar deben ser al menos 1.');
+
         const boton = event.currentTarget.querySelector('button');
         boton.disabled = true;
         boton.innerHTML = '<span>⟳</span> Simulando...';
