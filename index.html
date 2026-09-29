@@ -1,17 +1,36 @@
 <!doctype html>
 <html lang="es">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Simulacion del proyecto logistico</title>
   <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
   <main class="shell">
     <header class="hero">
-      <p class="eyebrow">TP3 · Simulacion · Grupo 4</p>
-      <h1>Proyecto logistico</h1>
-      <p class="subtitle">Cargá los parámetros del generador y observá cómo se comporta la red de actividades en paralelo.</p>
+      <div class="box-title">
+        <p class="eyebrow">TP3 · Simulacion · Grupo 4</p>
+        <h1>Proyecto logistico</h1>
+        <p class="subtitle">Cargá los parámetros del generador y observá cómo se comporta la red de actividades en
+          paralelo.</p>
+      </div>
+      <div class="box-legajo">
+        <label for="legajo">Alumnos</label>
+        <div class="legajo-grid">
+          <span> <i class="nf nf-fa-file"></i>Alca Claudia 93842</span>
+          <span> <i class="nf nf-fa-file"></i> Barreto Juan 77643</span>
+          <span> <i class="nf nf-fa-file"></i> Gomez Ezequiel 80536</span>
+          <span> <i class="nf nf-fa-file"></i> Mir Ezequiel 87753</span>
+          <span> <i class="nf nf-fa-file"></i> Martellotto Tomás Ezequiel 91550</span>
+          <span> <i class="nf nf-fa-file"></i> Figueroa Malena 402716</span>
+          <span> <i class="nf nf-fa-file"></i> Adami María Constanza 68699</span>
+          <span> <i class="nf nf-fa-file"></i> Verasay Lucila 400046</span>
+          <span> <i class="nf nf-fa-file"></i> Figueroa Guadalupe 93295</span>
+        </div>
+      </div>
     </header>
 
     <section class="layout">
@@ -45,9 +64,12 @@
         <fieldset>
           <legend>Distribuciones</legend>
           <div class="field-grid">
-            <label>Media de E <span class="unit-input"><input id="media-e" type="number" min="0.01" step="0.01" value="5"><b>min</b></span></label>
-            <label>Mínimo de D <span class="unit-input"><input id="d-min" type="number" min="0" step="0.01" value="5"><b>min</b></span></label>
-            <label>Máximo de D <span class="unit-input"><input id="d-max" type="number" min="0" step="0.01" value="25"><b>min</b></span></label>
+            <label>Media de E <span class="unit-input"><input id="media-e" type="number" min="0.01" step="0.01"
+                  value="5"><b>min</b></span></label>
+            <label>Mínimo de D <span class="unit-input"><input id="d-min" type="number" min="0" step="0.01"
+                  value="5"><b>min</b></span></label>
+            <label>Máximo de D <span class="unit-input"><input id="d-max" type="number" min="0" step="0.01"
+                  value="25"><b>min</b></span></label>
           </div>
         </fieldset>
 
@@ -142,26 +164,38 @@
           </div>
 
           <div class="metric-grid">
-            <article class="metric featured"><span>Promedio</span><strong id="promedio">—</strong><small>minutos</small></article>
-            <article class="metric"><span>Mínimo observado</span><strong id="minimo">—</strong><small>minutos</small></article>
-            <article class="metric"><span>Percentil 95</span><strong id="percentil">—</strong><small>minutos</small></article>
-            <article class="metric"><span>Máximo observado</span><strong id="maximo">—</strong><small>minutos</small></article>
-            <article class="metric"><span>P(T ≤ 60)</span><strong id="menor-60">—</strong><small>probabilidad</small></article>
-            <article class="metric"><span>P(T ≥ 90)</span><strong id="mayor-90">—</strong><small>probabilidad</small></article>
+            <article class="metric featured"><span>Promedio</span><strong id="promedio">—</strong><small>minutos</small>
+            </article>
+            <article class="metric"><span>Mínimo observado</span><strong id="minimo">—</strong><small>minutos</small>
+            </article>
+            <article class="metric"><span>Percentil 95</span><strong id="percentil">—</strong><small>minutos</small>
+            </article>
+            <article class="metric"><span>Máximo observado</span><strong id="maximo">—</strong><small>minutos</small>
+            </article>
+            <article class="metric"><span>P(T ≤ 60)</span><strong id="menor-60">—</strong><small>probabilidad</small>
+            </article>
+            <article class="metric"><span>P(T ≥ 90)</span><strong id="mayor-90">—</strong><small>probabilidad</small>
+            </article>
           </div>
 
           <div class="result-section">
-            <div class="section-heading"><h3>Duración promedio por actividad</h3><span>min</span></div>
+            <div class="section-heading">
+              <h3>Duración promedio por actividad</h3><span>min</span>
+            </div>
             <div id="activity-results" class="activity-list"></div>
           </div>
 
           <div class="result-section split-section">
             <div>
-              <div class="section-heading"><h3>Actividades críticas</h3><span>proporción</span></div>
+              <div class="section-heading">
+                <h3>Actividades críticas</h3><span>proporción</span>
+              </div>
               <div id="critical-results" class="bar-list"></div>
             </div>
             <div>
-              <div class="section-heading"><h3>Frecuencia</h3><span>10 intervalos</span></div>
+              <div class="section-heading">
+                <h3>Frecuencia</h3><span>10 intervalos</span>
+              </div>
               <div id="frequency-results" class="frequency-list"></div>
             </div>
           </div>
@@ -246,7 +280,7 @@
       const generadores = crearGeneradores(p);
       for (let i = 1; i <= p.cantidad; i += 1) {
         const resultado = simular(generadores, p);
-        
+
         // Guardamos solo hasta el límite de filas que el usuario pidió mostrar para no sobrecargar
         if (i <= p.filasMostrar) {
           iteracionesParciales.push({ numero: i, ...resultado });
@@ -379,16 +413,17 @@
       }
     });
 
-    $('simulation-form').addEventListener('submit', (event) => {       event.preventDefault();$('error').hidden = true;
+    $('simulation-form').addEventListener('submit', (event) => {
+      event.preventDefault(); $('error').hidden = true;
       try {
         const p = {
-          legajo: Number($('legajo').value), 
-          cantidad: Number($('cantidad').value), 
+          legajo: Number($('legajo').value),
+          cantidad: Number($('cantidad').value),
           semilla: Number($('semilla').value),
-          multiplicador: Number($('multiplicador').value), 
-          aditivo: Number($('aditivo').value), 
+          multiplicador: Number($('multiplicador').value),
+          aditivo: Number($('aditivo').value),
           mediaE: Number($('media-e').value),
-          dMin: Number($('d-min').value), 
+          dMin: Number($('d-min').value),
           dMax: Number($('d-max').value),
           filasMostrar: Number($('filas-mostrar').value)
         };
@@ -411,4 +446,5 @@
     });
   </script>
 </body>
+
 </html>
