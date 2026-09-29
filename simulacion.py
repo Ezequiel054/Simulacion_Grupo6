@@ -1,6 +1,6 @@
-"""Simulación del proyecto logístico del TP3.
-
-La simulación es reproducible y no conserva una tabla de observaciones.
+"""
+    Simulación del proyecto logístico del TP3.
+    La simulación es reproducible y no conserva una tabla de observaciones.
 """
 
 from dataclasses import dataclass, field

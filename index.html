@@ -100,6 +100,47 @@
             </div>
           </div>
 
+          <!-- Consulta de iteración puntual -->
+          <div class="result-section query-section">
+            <div class="section-heading">
+              <h3>Consultar iteración específica</h3>
+              <span>Detalle individual</span>
+            </div>
+            <div class="query-box">
+              <form id="query-iteration-form" class="query-form" onsubmit="return false;">
+                <label for="query-iter-input">Número de iteración (X):</label>
+                <div class="query-input-group">
+                  <input id="query-iter-input" type="number" min="1" placeholder="Ej: 100" />
+                  <button id="query-iter-button" type="button" class="query-btn">Buscar</button>
+                </div>
+              </form>
+              <div id="query-iter-result" class="query-result-card" style="display: none;">
+                <div class="query-result-header">
+                  <strong id="query-result-title">Iteración #X</strong>
+                  <span id="query-result-total" class="query-badge">Total: — min</span>
+                </div>
+                <div class="table-container query-table-container">
+                  <table class="simulation-table">
+                    <thead>
+                      <tr>
+                        <th>N°</th>
+                        <th>A</th>
+                        <th>B</th>
+                        <th>C</th>
+                        <th>D</th>
+                        <th>E</th>
+                        <th>F</th>
+                        <th>Total (min)</th>
+                      </tr>
+                    </thead>
+                    <tbody id="query-iter-table-body"></tbody>
+                  </table>
+                </div>
+              </div>
+              <p id="query-iter-error" class="error" role="alert" style="display: none;"></p>
+            </div>
+          </div>
+
           <div class="metric-grid">
             <article class="metric featured"><span>Promedio</span><strong id="promedio">—</strong><small>minutos</small></article>
             <article class="metric"><span>Mínimo observado</span><strong id="minimo">—</strong><small>minutos</small></article>
@@ -244,9 +285,13 @@
       return { suma, minimo, maximo, menores60, mayores90, criticas, duraciones, percentil, intervalos, iteracionesParciales };
     }
 
+    let ultimosParametros = null;
+
     function mostrar(p, r) {
+      ultimosParametros = p;
       $('empty-state').style.display = 'none';
-      $('result-content').style.display = 'block';$('run-label').textContent = `${p.cantidad.toLocaleString('es-AR')} corridas`;
+      $('result-content').style.display = 'block';
+      $('run-label').textContent = `${p.cantidad.toLocaleString('es-AR')} corridas`;
       $('total-corridas-label').textContent = `Mostrando ${r.iteracionesParciales.length.toLocaleString('es-AR')} de ${p.cantidad.toLocaleString('es-AR')}`;
 
       $('detalle-iteraciones').innerHTML = r.iteracionesParciales.map((it) => `
@@ -263,12 +308,76 @@
       `).join('');
 
       $('promedio').textContent = redondeo(r.suma / p.cantidad);
-      $('minimo').textContent = redondeo(r.minimo);$('percentil').textContent = redondeo(r.percentil);
-      $('maximo').textContent = redondeo(r.maximo);$('menor-60').textContent = porcentaje(r.menores60 / p.cantidad);
-      $('mayor-90').textContent = porcentaje(r.mayores90 / p.cantidad);$('activity-results').innerHTML = Object.entries(r.duraciones).map(([codigo, total]) => `<div class="activity-row"><b>${codigo}</b><span>${redondeo(total / p.cantidad)} min</span></div>`).join('');
+      $('minimo').textContent = redondeo(r.minimo);
+      $('percentil').textContent = redondeo(r.percentil);
+      $('maximo').textContent = redondeo(r.maximo);
+      $('menor-60').textContent = porcentaje(r.menores60 / p.cantidad);
+      $('mayor-90').textContent = porcentaje(r.mayores90 / p.cantidad);
+      $('activity-results').innerHTML = Object.entries(r.duraciones).map(([codigo, total]) => `<div class="activity-row"><b>${codigo}</b><span>${redondeo(total / p.cantidad)} min</span></div>`).join('');
       $('critical-results').innerHTML = Object.entries(r.criticas).map(([codigo, total]) => `<div class="bar-row"><div><b>${codigo}</b><span>${porcentaje(total / p.cantidad)}</span></div><i><em style="width: ${total / p.cantidad * 100}%"></em></i></div>`).join('');
       $('frequency-results').innerHTML = r.intervalos.map((total, indice) => `<div class="frequency-row"><span>${indice < 9 ? `${redondeo(r.minimo + indice * 10)}–${redondeo(r.minimo + (indice + 1) * 10)}` : `≥ ${redondeo(r.minimo + 90)}`}</span><b>${total.toLocaleString('es-AR')}</b></div>`).join('');
+
+      // Si había un input ya cargado, actualizar la consulta
+      const iterConsultada = Number($('query-iter-input').value);
+      if (iterConsultada >= 1 && iterConsultada <= p.cantidad) {
+        consultarIteracion(iterConsultada);
+      } else {
+        $('query-iter-result').style.display = 'none';
+        $('query-iter-error').style.display = 'none';
+      }
     }
+
+    function consultarIteracion(numeroIter) {
+      if (!ultimosParametros) return;
+      $('query-iter-error').style.display = 'none';
+
+      if (numeroIter < 1 || numeroIter > ultimosParametros.cantidad) {
+        $('query-iter-error').textContent = `La iteración debe estar entre 1 y ${ultimosParametros.cantidad.toLocaleString('es-AR')}.`;
+        $('query-iter-error').style.display = 'block';
+        $('query-iter-result').style.display = 'none';
+        return;
+      }
+
+      const generadores = crearGeneradores(ultimosParametros);
+      let resultado = null;
+      for (let i = 1; i <= numeroIter; i += 1) {
+        resultado = simular(generadores, ultimosParametros);
+      }
+
+      $('query-result-title').textContent = `Iteración #${numeroIter}`;
+      $('query-result-total').textContent = `Total: ${redondeo(resultado.total)} min`;
+      $('query-iter-table-body').innerHTML = `
+        <tr>
+          <td><b>#${numeroIter}</b></td>
+          <td>${redondeo(resultado.tiempos.A)}</td>
+          <td>${redondeo(resultado.tiempos.B)}</td>
+          <td>${redondeo(resultado.tiempos.C)}</td>
+          <td>${redondeo(resultado.tiempos.D)}</td>
+          <td>${redondeo(resultado.tiempos.E)}</td>
+          <td>${redondeo(resultado.tiempos.F)}</td>
+          <td><b>${redondeo(resultado.total)}</b></td>
+        </tr>
+      `;
+      $('query-iter-result').style.display = 'block';
+    }
+
+    $('query-iter-button').addEventListener('click', () => {
+      const num = Number($('query-iter-input').value);
+      if (!num) {
+        $('query-iter-error').textContent = 'Por favor, ingresá un número de iteración válido.';
+        $('query-iter-error').style.display = 'block';
+        $('query-iter-result').style.display = 'none';
+        return;
+      }
+      consultarIteracion(num);
+    });
+
+    $('query-iter-input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        $('query-iter-button').click();
+      }
+    });
 
     $('simulation-form').addEventListener('submit', (event) => {       event.preventDefault();$('error').hidden = true;
       try {
