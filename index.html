@@ -97,15 +97,26 @@
         <div id="result-content" style="display: none;">
           <div class="result-section" style="margin-top: 0; padding-top: 0; border-top: none;">
             <div class="section-heading">
-              <h3>Detalle de iteraciones iniciales</h3>
-              <span id="total-corridas-label">Mostrando filas</span>
+              <div>
+                <h3>Detalle de iteraciones iniciales</h3>
+                <span id="orden-referencia-badge" class="order-badge">Orden cronológico por ocurrencia</span>
+              </div>
+              <div class="table-actions">
+                <button id="toggle-order-btn" type="button" class="order-toggle-btn">
+                  <span id="order-btn-icon">⇅</span> <span id="order-btn-text">Ordenar de menor a mayor</span>
+                </button>
+                <span id="total-corridas-label">Mostrando filas</span>
+              </div>
             </div>
+            <p id="orden-referencia-msg" class="table-order-note">
+              Mostrando simulaciones en el orden cronológico en que ocurrieron (#1, #2, #3...).
+            </p>
             <!-- Contenedor con scroll vertical fluido -->
             <div class="table-container" style="max-height: 350px; overflow-y: auto;">
               <table class="simulation-table">
                 <thead>
                   <tr>
-                    <th>N°</th>
+                    <th id="th-numero">N°</th>
                     <th>A</th>
                     <th>B</th>
                     <th>C</th>
@@ -320,26 +331,70 @@
     }
 
     let ultimosParametros = null;
+    let ultimasIteraciones = [];
+    let ordenPorTiempo = false;
+
+    function renderizarTablaIteraciones() {
+      const iteraciones = ordenPorTiempo
+        ? [...ultimasIteraciones].sort((a, b) => a.total - b.total)
+        : ultimasIteraciones;
+
+      const badge = $('orden-referencia-badge');
+      const msg = $('orden-referencia-msg');
+      const btnIcon = $('order-btn-icon');
+      const btnText = $('order-btn-text');
+      const thNumero = $('th-numero');
+
+      if (ordenPorTiempo) {
+        badge.textContent = 'Ordenado de menor a mayor según tiempo';
+        badge.className = 'order-badge sorted';
+        msg.textContent = 'Mostrando simulaciones ordenadas de menor a mayor según su tiempo total.';
+        btnIcon.textContent = '⏱';
+        btnText.textContent = 'Ver orden cronológico';
+        thNumero.textContent = 'Posición / Corrida';
+      } else {
+        badge.textContent = 'Orden cronológico por ocurrencia';
+        badge.className = 'order-badge';
+        msg.textContent = 'Mostrando simulaciones en el orden cronológico en que ocurrieron (#1, #2, #3...).';
+        btnIcon.textContent = '⇅';
+        btnText.textContent = 'Ordenar de menor a mayor';
+        thNumero.textContent = 'N°';
+      }
+
+      $('detalle-iteraciones').innerHTML = iteraciones.map((it, idx) => {
+        const etiqueta = ordenPorTiempo ? `#${idx + 1} (orig. #${it.numero})` : `#${it.numero}`;
+        return `
+          <tr>
+            <td><b>${etiqueta}</b></td>
+            <td>${redondeo(it.tiempos.A)}</td>
+            <td>${redondeo(it.tiempos.B)}</td>
+            <td>${redondeo(it.tiempos.C)}</td>
+            <td>${redondeo(it.tiempos.D)}</td>
+            <td>${redondeo(it.tiempos.E)}</td>
+            <td>${redondeo(it.tiempos.F)}</td>
+            <td><b>${redondeo(it.total)}</b></td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    $('toggle-order-btn').addEventListener('click', () => {
+      if (!ultimasIteraciones.length) return;
+      ordenPorTiempo = !ordenPorTiempo;
+      renderizarTablaIteraciones();
+    });
 
     function mostrar(p, r) {
       ultimosParametros = p;
+      ultimasIteraciones = r.iteracionesParciales;
+      ordenPorTiempo = false;
+
       $('empty-state').style.display = 'none';
       $('result-content').style.display = 'block';
       $('run-label').textContent = `${p.cantidad.toLocaleString('es-AR')} corridas`;
       $('total-corridas-label').textContent = `Mostrando ${r.iteracionesParciales.length.toLocaleString('es-AR')} de ${p.cantidad.toLocaleString('es-AR')}`;
 
-      $('detalle-iteraciones').innerHTML = r.iteracionesParciales.map((it) => `
-        <tr>
-          <td><b>#${it.numero}</b></td>
-          <td>${redondeo(it.tiempos.A)}</td>
-          <td>${redondeo(it.tiempos.B)}</td>
-          <td>${redondeo(it.tiempos.C)}</td>
-          <td>${redondeo(it.tiempos.D)}</td>
-          <td>${redondeo(it.tiempos.E)}</td>
-          <td>${redondeo(it.tiempos.F)}</td>
-          <td><b>${redondeo(it.total)}</b></td>
-        </tr>
-      `).join('');
+      renderizarTablaIteraciones();
 
       $('promedio').textContent = redondeo(r.suma / p.cantidad);
       $('minimo').textContent = redondeo(r.minimo);
